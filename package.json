@@ -30,5 +30,14 @@
     "2-player"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nyo95/JAIPUR.git"
+  },
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/nyo95/JAIPUR/issues"
+  },
+  "homepage": "https://github.com/nyo95/JAIPUR#readme"
 }

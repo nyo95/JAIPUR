@@ -8,6 +8,7 @@ import { ACTION_MODES, useGameEngine } from './hooks/useGameEngine.js';
 import { useLobby } from './hooks/useLobby.js';
 
 const App = () => {
+  const lobby = useLobby();
   const {
     hydrated,
     phase,
@@ -22,8 +23,7 @@ const App = () => {
     roundResult,
     derived,
     actions
-  } = useGameEngine();
-  const lobby = useLobby();
+  } = useGameEngine(lobby);
   const [nameDraft, setNameDraft] = useState(lobby.name);
 
   useEffect(() => {
