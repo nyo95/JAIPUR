@@ -63,64 +63,73 @@ export function shuffleDeck(deck) {
 }
 
 // Deal initial cards
+const STARTING_HAND_SIZE = 5;
+export const MARKET_SIZE = 5;
+const STARTING_CAMELS_IN_MARKET = 3;
+
 export function dealInitialCards(deck) {
   const newDeck = [...deck];
-  
-  // Deal 5 cards to each player
-  const player1Hand = [];
-  const player2Hand = [];
-  
-  for (let i = 0; i < 5; i++) {
-    player1Hand.push(newDeck.pop());
-    player2Hand.push(newDeck.pop());
-  }
-  
-  // Put camels in herd and replacements in hand
-  const player1Camels = player1Hand.filter(card => card.type === CARD_TYPES.CAMEL);
-  const player2Camels = player2Hand.filter(card => card.type === CARD_TYPES.CAMEL);
-  
-  const player1Goods = player1Hand.filter(card => card.type !== CARD_TYPES.CAMEL);
-  const player2Goods = player2Hand.filter(card => card.type !== CARD_TYPES.CAMEL);
-  
-  // Replace camels with new cards from deck
-  while (player1Goods.length < 5 && newDeck.length > 0) {
-    const newCard = newDeck.pop();
-    if (newCard.type !== CARD_TYPES.CAMEL) {
-      player1Goods.push(newCard);
-    } else {
-      player1Camels.push(newCard);
+  const drawCard = () => (newDeck.length ? newDeck.pop() : null);
+
+  const prepareHand = () => {
+    const rawHand = [];
+    for (let i = 0; i < STARTING_HAND_SIZE && newDeck.length; i++) {
+      rawHand.push(drawCard());
     }
-  }
-  
-  while (player2Goods.length < 5 && newDeck.length > 0) {
-    const newCard = newDeck.pop();
-    if (newCard.type !== CARD_TYPES.CAMEL) {
-      player2Goods.push(newCard);
-    } else {
-      player2Camels.push(newCard);
+    const camels = rawHand.filter(card => card?.type === CARD_TYPES.CAMEL);
+    const goods = rawHand.filter(card => card?.type !== CARD_TYPES.CAMEL);
+
+    while (goods.length < STARTING_HAND_SIZE && newDeck.length) {
+      const nextCard = drawCard();
+      if (!nextCard) break;
+      if (nextCard.type === CARD_TYPES.CAMEL) {
+        camels.push(nextCard);
+      } else {
+        goods.push(nextCard);
+      }
     }
-  }
-  
-  // Create market with 3 cards
-  const market = [];
-  for (let i = 0; i < 3; i++) {
-    market.push(newDeck.pop());
-  }
-  
+
+    return {
+      hand: goods,
+      camelHerd: camels
+    };
+  };
+
+  const player1Setup = prepareHand();
+  const player2Setup = prepareHand();
+
+  const market = buildStartingMarket(newDeck);
+
   return {
     deck: newDeck,
     player1: {
-      hand: player1Goods,
-      camelHerd: player1Camels,
+      hand: player1Setup.hand,
+      camelHerd: player1Setup.camelHerd,
       tokens: [],
       score: 0
     },
     player2: {
-      hand: player2Goods,
-      camelHerd: player2Camels,
+      hand: player2Setup.hand,
+      camelHerd: player2Setup.camelHerd,
       tokens: [],
       score: 0
     },
     market
   };
+}
+
+function buildStartingMarket(deck) {
+  const market = [];
+
+  for (let i = 0; i < STARTING_CAMELS_IN_MARKET; i++) {
+    const camelIndex = deck.findIndex(card => card.type === CARD_TYPES.CAMEL);
+    if (camelIndex === -1) break;
+    market.push(deck.splice(camelIndex, 1)[0]);
+  }
+
+  while (market.length < MARKET_SIZE && deck.length) {
+    market.push(deck.pop());
+  }
+
+  return market;
 }

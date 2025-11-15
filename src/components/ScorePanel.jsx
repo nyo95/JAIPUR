@@ -1,87 +1,115 @@
 import React from 'react';
+import clsx from 'clsx';
+import { getCardLabel } from '../logic/helpers.js';
 
-const ScorePanel = ({ 
-  player1, 
-  player2, 
-  tokenStacks, 
-  deck, 
-  roundOver = false 
+const GOODS_ORDER = ['diamond', 'gold', 'silver', 'cloth', 'spice', 'leather'];
+const GOOD_COLORS = {
+  diamond: 'from-sky-500/30 to-sky-600/20',
+  gold: 'from-amber-500/30 to-amber-600/20',
+  silver: 'from-slate-300/30 to-slate-400/20',
+  cloth: 'from-purple-500/30 to-purple-600/20',
+  spice: 'from-rose-500/30 to-rose-600/20',
+  leather: 'from-orange-800/30 to-orange-700/20'
+};
+
+const ScorePanel = ({
+  players,
+  deckCount,
+  tokenStacks,
+  emptyStacks = [],
+  phase,
+  roundResult,
+  onRequestRematch,
+  playerLabels = { 1: 'Pemain 1', 2: 'Pemain 2' }
 }) => {
-  const getRemainingTokens = (type) => {
-    return tokenStacks[type] ? tokenStacks[type].length : 0;
-  };
-
-  const getTokenDisplay = (type, values) => {
-    const remaining = getRemainingTokens(type);
-    if (remaining === 0) return null;
-    
-    const colors = {
-      diamond: 'bg-blue-500',
-      gold: 'bg-yellow-500',
-      silver: 'bg-gray-400',
-      cloth: 'bg-purple-500',
-      spice: 'bg-red-500',
-      leather: 'bg-amber-700'
-    };
-
-    return (
-      <div className="flex items-center gap-2">
-        <div className={`w-4 h-4 ${colors[type]} rounded`}></div>
-        <span className="text-sm font-medium">{type}:</span>
-        <span className="text-sm text-gray-600">{remaining} left</span>
-      </div>
-    );
-  };
-
+  const stacks = tokenStacks ?? {};
   return (
-    <div className="bg-gray-50 rounded-lg p-4 shadow-inner">
-      <h3 className="text-lg font-bold text-center mb-4 text-gray-800">Game Status</h3>
-      
-      {/* Scores */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div className="bg-white rounded p-3 text-center">
-          <h4 className="font-semibold text-blue-600">Player 1</h4>
-          <div className="text-2xl font-bold text-gray-800">{player1.score}</div>
-          <div className="text-xs text-gray-500">🐪 {player1.camelHerd.length} camels</div>
-        </div>
-        <div className="bg-white rounded p-3 text-center">
-          <h4 className="font-semibold text-red-600">Player 2</h4>
-          <div className="text-2xl font-bold text-gray-800">{player2.score}</div>
-          <div className="text-xs text-gray-500">🐪 {player2.camelHerd.length} camels</div>
-        </div>
+    <aside className="rounded-3xl border border-white/5 bg-slate-950/60 p-5 text-slate-100 shadow-[0_35px_80px_rgba(2,6,23,0.85)]">
+      <div className="mb-5">
+        <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Papan Skor</p>
+        <h2 className="text-2xl font-semibold text-white">Ringkasan Ronde</h2>
       </div>
 
-      {/* Deck Status */}
-      <div className="bg-white rounded p-3 mb-4 text-center">
-        <div className="text-sm text-gray-600">Cards in Deck</div>
-        <div className="text-xl font-bold text-gray-800">{deck.length}</div>
-        {roundOver && (
-          <div className="text-sm text-orange-600 font-semibold mt-1">Round Over!</div>
+      <div className="space-y-3">
+        {[1, 2].map((playerId) => {
+          const data = players[playerId] ?? { score: 0, camelHerd: [], hand: [] };
+          return (
+          <div
+            key={playerId}
+            className="rounded-2xl border border-white/10 bg-slate-900/50 px-4 py-3"
+          >
+            <div className="flex items-center justify-between text-sm">
+              <div>
+                <p className="text-xs uppercase tracking-[0.4em] text-slate-400">{playerLabels[playerId] || `Pemain ${playerId}`}</p>
+                <p className="text-lg font-semibold text-white">{data.score} poin</p>
+              </div>
+              <div className="text-right text-xs text-slate-400">
+                <p>{data.camelHerd.length} unta</p>
+                <p>{data.hand.length} kartu</p>
+              </div>
+            </div>
+          </div>
+        )})}
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Dek</p>
+            <p className="text-2xl font-semibold text-white">{deckCount}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Token habis</p>
+            <p className="text-lg font-semibold text-amber-200">{emptyStacks.length}</p>
+          </div>
+        </div>
+        {emptyStacks.length > 0 && (
+          <p className="mt-2 text-xs text-amber-200">
+            {emptyStacks.map(type => getCardLabel(type)).join(', ')} habis
+          </p>
         )}
       </div>
 
-      {/* Token Stacks */}
-      <div className="bg-white rounded p-3">
-        <h4 className="font-semibold text-gray-700 mb-2">Remaining Tokens</h4>
-        <div className="grid grid-cols-2 gap-2 text-sm">
-          {getTokenDisplay('diamond')}
-          {getTokenDisplay('gold')}
-          {getTokenDisplay('silver')}
-          {getTokenDisplay('cloth')}
-          {getTokenDisplay('spice')}
-          {getTokenDisplay('leather')}
-        </div>
+      <div className="mt-5 space-y-3 text-sm">
+        <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Tumpukan Token</p>
+        {GOODS_ORDER.map((type) => (
+          <div
+            key={type}
+            className={clsx(
+              'flex items-center justify-between rounded-2xl border border-white/5 px-3 py-2 text-slate-200',
+              'bg-gradient-to-r',
+              GOOD_COLORS[type]
+            )}
+          >
+            <span className="font-semibold">{getCardLabel(type)}</span>
+            <span>{stacks[type]?.length ?? 0} tersisa</span>
+          </div>
+        ))}
       </div>
 
-      {/* Empty Token Stacks Warning */}
-      {Object.values(tokenStacks).filter(stack => stack.length === 0).length >= 3 && (
-        <div className="mt-3 bg-orange-100 border border-orange-300 rounded p-2 text-center">
-          <div className="text-sm text-orange-700 font-semibold">
-            ⚠️ 3+ token stacks empty - Round will end!
-          </div>
+      {phase === 'roundOver' && roundResult && (
+        <div className="mt-5 rounded-2xl border border-amber-400/60 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          <p className="text-xs uppercase tracking-[0.4em] text-amber-200">Hasil Ronde</p>
+          <p className="mt-2 font-semibold">
+            {roundResult.winner === 'tie'
+              ? 'Seri!'
+              : `Pemain ${roundResult.winner} memenangkan ronde`}
+          </p>
+          <p className="text-xs text-amber-200/80">
+            Bonus unta: +{roundResult.camelBonus.player1} / +{roundResult.camelBonus.player2}
+          </p>
+          {onRequestRematch && (
+            <button
+              type="button"
+              onClick={onRequestRematch}
+              className="mt-3 w-full rounded-full bg-amber-400 py-2 text-sm font-semibold text-slate-900 transition hover:bg-amber-300"
+            >
+              Main Lagi
+            </button>
+          )}
         </div>
       )}
-    </div>
+    </aside>
   );
 };
 

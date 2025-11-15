@@ -1,4 +1,16 @@
-import { CARD_TYPES, TOKEN_VALUES, BONUS_TOKENS } from './deck.js';
+import { CARD_TYPES, TOKEN_VALUES, BONUS_TOKENS, MARKET_SIZE } from './deck.js';
+
+export const HAND_LIMIT = 7;
+const PRECIOUS_GOODS = new Set([CARD_TYPES.DIAMOND, CARD_TYPES.GOLD, CARD_TYPES.SILVER]);
+const CARD_LABELS = {
+  [CARD_TYPES.DIAMOND]: 'Berlian',
+  [CARD_TYPES.GOLD]: 'Emas',
+  [CARD_TYPES.SILVER]: 'Perak',
+  [CARD_TYPES.CLOTH]: 'Kain',
+  [CARD_TYPES.SPICE]: 'Rempah',
+  [CARD_TYPES.LEATHER]: 'Kulit',
+  [CARD_TYPES.CAMEL]: 'Unta'
+};
 
 // Check if round is over
 export function isRoundOver(deck, tokenStacks) {
@@ -20,80 +32,88 @@ export function calculateCamelBonus(player1Camels, player2Camels) {
 }
 
 // Sell goods and calculate score
-export function sellGoods(cards, tokenStacks) {
+export function sellGoods(cards, tokenStacks, bonusStacks) {
+  if (!cards || cards.length === 0) {
+    return { error: 'Pilih barang untuk dijual' };
+  }
+
   const cardType = cards[0].type;
   const count = cards.length;
-  
+
   if (cardType === CARD_TYPES.CAMEL) {
-    return { error: "Cannot sell camels" };
+    return { error: 'Tidak bisa menjual unta' };
   }
-  
-  // Check minimum requirements
-  const minRequired = [CARD_TYPES.DIAMOND, CARD_TYPES.GOLD, CARD_TYPES.SILVER].includes(cardType) ? 2 : 1;
-  
+
+  const isMixedSet = cards.some(card => card.type !== cardType);
+  if (isMixedSet) {
+    return { error: 'Barang yang dijual harus sejenis' };
+  }
+
+  const minRequired = PRECIOUS_GOODS.has(cardType) ? 2 : 1;
   if (count < minRequired) {
-    return { error: `Need at least ${minRequired} ${cardType} cards to sell` };
+    return { error: `Butuh minimal ${minRequired} ${getCardLabel(cardType)} untuk menjual` };
   }
-  
-  // Get token value
-  const tokens = tokenStacks[cardType];
-  if (tokens.length === 0) {
-    return { error: `No ${cardType} tokens left` };
+
+  const availableTokens = tokenStacks[cardType] ?? [];
+  if (availableTokens.length < count) {
+    return { error: `Token ${getCardLabel(cardType)} tidak mencukupi` };
   }
-  
-  const tokenValue = tokens.shift();
-  let totalScore = tokenValue;
-  let bonusTokens = [];
-  
-  // Check for bonuses
-  if (count >= 3) {
-    if (count === 3 && BONUS_TOKENS.three.length > 0) {
-      const bonus = BONUS_TOKENS.three.shift();
-      bonusTokens.push({ type: 'three', value: bonus });
-      totalScore += bonus;
-    } else if (count === 4 && BONUS_TOKENS.four.length > 0) {
-      const bonus = BONUS_TOKENS.four.shift();
-      bonusTokens.push({ type: 'four', value: bonus });
-      totalScore += bonus;
-    } else if (count >= 5 && BONUS_TOKENS.five.length > 0) {
-      const bonus = BONUS_TOKENS.five.shift();
-      bonusTokens.push({ type: 'five', value: bonus });
-      totalScore += bonus;
-    }
-  }
-  
+
+  const newTokenStacks = {
+    ...tokenStacks,
+    [cardType]: availableTokens.slice(count)
+  };
+
+  const tokenValues = availableTokens.slice(0, count);
+  let totalScore = tokenValues.reduce((sum, value) => sum + value, 0);
+
+  const { bonusTokens, updatedBonusStacks } = pullBonusTokens(count, bonusStacks);
+  totalScore += bonusTokens.reduce((sum, token) => sum + token.value, 0);
+
   return {
     score: totalScore,
-    tokenValue,
+    tokenValues,
     bonusTokens,
-    newTokenStacks: tokenStacks
+    newTokenStacks,
+    newBonusStacks: updatedBonusStacks
   };
 }
 
 // Take one goods card from market
-export function takeGoodsCard(marketIndex, market, deck, playerHand) {
+export function takeGoodsCard(marketIndex, market, deck, playerHand, options = {}) {
+  const handLimit = options.handLimit ?? HAND_LIMIT;
   if (marketIndex < 0 || marketIndex >= market.length) {
-    return { error: "Invalid market index" };
+    return { error: 'Pilihan pasar tidak valid' };
   }
-  
+
   const card = market[marketIndex];
   if (card.type === CARD_TYPES.CAMEL) {
-    return { error: "Cannot take camel with take goods action" };
+    return { error: 'Tidak bisa mengambil unta lewat aksi ini' };
+  }
+
+  const goodsCount = playerHand.filter(item => item.type !== CARD_TYPES.CAMEL).length;
+  if (goodsCount >= handLimit) {
+    return { error: `Jumlah barang di tangan sudah mencapai batas (${handLimit})` };
+  }
+  if (goodsCount + 1 > handLimit) {
+    return { error: `Mengambil kartu ini akan melewati batas ${handLimit} barang di tangan` };
   }
   
   const newMarket = [...market];
-  newMarket.splice(marketIndex, 1);
+  const newDeck = [...deck];
+  const replacementCard = newDeck.length ? newDeck.pop() : null;
   
-  // Refill market from deck
-  if (deck.length > 0) {
-    newMarket.push(deck.pop());
+  if (replacementCard) {
+    newMarket.splice(marketIndex, 1, replacementCard);
+  } else {
+    newMarket.splice(marketIndex, 1);
   }
   
   const newHand = [...playerHand, card];
   
   return {
     newMarket,
-    newDeck: deck,
+    newDeck,
     newHand,
     takenCard: card
   };
@@ -102,25 +122,23 @@ export function takeGoodsCard(marketIndex, market, deck, playerHand) {
 // Take all camels from market
 export function takeCamels(market, deck, playerCamelHerd) {
   const camels = market.filter(card => card.type === CARD_TYPES.CAMEL);
-  
+
   if (camels.length === 0) {
-    return { error: "No camels in market" };
+    return { error: 'Tidak ada unta di pasar' };
   }
   
-  // Remove camels from market
   const newMarket = market.filter(card => card.type !== CARD_TYPES.CAMEL);
+  const newDeck = [...deck];
   
-  // Refill market from deck
-  const cardsNeeded = camels.length;
-  for (let i = 0; i < cardsNeeded && deck.length > 0; i++) {
-    newMarket.push(deck.pop());
+  while (newMarket.length < MARKET_SIZE && newDeck.length > 0) {
+    newMarket.push(newDeck.pop());
   }
   
   const newCamelHerd = [...playerCamelHerd, ...camels];
   
   return {
     newMarket,
-    newDeck: deck,
+    newDeck,
     newCamelHerd,
     takenCamels: camels.length
   };
@@ -135,6 +153,14 @@ export function initializeTokenStacks() {
   return stacks;
 }
 
+export function initializeBonusTokens() {
+  return {
+    three: [...BONUS_TOKENS.three],
+    four: [...BONUS_TOKENS.four],
+    five: [...BONUS_TOKENS.five]
+  };
+}
+
 // Sort cards by type for display
 export function sortCards(cards) {
   const typeOrder = [CARD_TYPES.DIAMOND, CARD_TYPES.GOLD, CARD_TYPES.SILVER, CARD_TYPES.CLOTH, CARD_TYPES.SPICE, CARD_TYPES.LEATHER];
@@ -143,21 +169,30 @@ export function sortCards(cards) {
   });
 }
 
-// Get card display color
-export function getCardColor(cardType) {
-  const colors = {
-    [CARD_TYPES.DIAMOND]: 'bg-blue-500',
-    [CARD_TYPES.GOLD]: 'bg-yellow-500',
-    [CARD_TYPES.SILVER]: 'bg-gray-400',
-    [CARD_TYPES.CLOTH]: 'bg-purple-500',
-    [CARD_TYPES.SPICE]: 'bg-red-500',
-    [CARD_TYPES.LEATHER]: 'bg-amber-700',
-    [CARD_TYPES.CAMEL]: 'bg-orange-500'
-  };
-  return colors[cardType] || 'bg-gray-500';
-}
-
 // Get card display label
 export function getCardLabel(cardType) {
-  return cardType.charAt(0).toUpperCase() + cardType.slice(1);
+  return CARD_LABELS[cardType] || cardType;
+}
+
+export function getCardAsset(cardType) {
+  return `/cards/${cardType}.png`;
+}
+
+function pullBonusTokens(count, bonusStacks = { three: [], four: [], five: [] }) {
+  const updatedBonusStacks = {
+    three: [...(bonusStacks.three ?? [])],
+    four: [...(bonusStacks.four ?? [])],
+    five: [...(bonusStacks.five ?? [])]
+  };
+
+  let bonusTokens = [];
+  if (count === 3 && updatedBonusStacks.three.length) {
+    bonusTokens = [{ type: 'three', value: updatedBonusStacks.three.shift() }];
+  } else if (count === 4 && updatedBonusStacks.four.length) {
+    bonusTokens = [{ type: 'four', value: updatedBonusStacks.four.shift() }];
+  } else if (count >= 5 && updatedBonusStacks.five.length) {
+    bonusTokens = [{ type: 'five', value: updatedBonusStacks.five.shift() }];
+  }
+
+  return { bonusTokens, updatedBonusStacks };
 }
